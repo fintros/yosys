@@ -30,7 +30,7 @@
 #endif
 
 #include "frontends/ilang/ilang_frontend.h"
-#include "ilang_parser.tab.h"
+#include "ilang_parser.tab.hh"
 
 USING_YOSYS_NAMESPACE
 
@@ -53,6 +53,7 @@ USING_YOSYS_NAMESPACE
 "attribute"	{ return TOK_ATTRIBUTE; }
 "parameter"	{ return TOK_PARAMETER; }
 "signed"	{ return TOK_SIGNED; }
+"real"		{ return TOK_REAL; }
 "wire"		{ return TOK_WIRE; }
 "memory"	{ return TOK_MEMORY; }
 "width"		{ return TOK_WIDTH; }
@@ -74,6 +75,7 @@ USING_YOSYS_NAMESPACE
 "negedge"	{ return TOK_NEGEDGE; }
 "edge"		{ return TOK_EDGE; }
 "always"	{ return TOK_ALWAYS; }
+"global"	{ return TOK_GLOBAL; }
 "init"		{ return TOK_INIT; }
 "update"	{ return TOK_UPDATE; }
 "process"	{ return TOK_PROCESS; }

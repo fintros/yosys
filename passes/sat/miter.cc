@@ -254,7 +254,7 @@ void create_miter_equiv(struct Pass *that, std::vector<std::string> args, RTLIL:
 
 	if (flag_flatten) {
 		log_push();
-		Pass::call_on_module(design, miter_module, "flatten; opt_expr -keepdc -undriven;;");
+		Pass::call_on_module(design, miter_module, "flatten -wb; opt_expr -keepdc -undriven;;");
 		log_pop();
 	}
 }
@@ -308,22 +308,46 @@ void create_miter_assert(struct Pass *that, std::vector<std::string> args, RTLIL
 
 	if (flag_flatten) {
 		log_push();
-		Pass::call_on_module(design, module, "flatten;;");
+		Pass::call_on_module(design, module, "flatten -wb;;");
 		log_pop();
 	}
 
-	SigSpec or_signals;
+	SigSpec assert_signals, assume_signals;
 	vector<Cell*> cell_list = module->cells();
-	for (auto cell : cell_list) {
+	for (auto cell : cell_list)
+	{
+		if (!cell->type.in("$assert", "$assume"))
+			continue;
+
+		SigBit is_active = module->Nex(NEW_ID, cell->getPort("\\A"), State::S1);
+		SigBit is_enabled = module->Eqx(NEW_ID, cell->getPort("\\EN"), State::S1);
+
 		if (cell->type == "$assert") {
-			SigBit is_active = module->Nex(NEW_ID, cell->getPort("\\A"), State::S1);
-			SigBit is_enabled = module->Eqx(NEW_ID, cell->getPort("\\EN"), State::S1);
-			or_signals.append(module->And(NEW_ID, is_active, is_enabled));
-			module->remove(cell);
+			assert_signals.append(module->And(NEW_ID, is_active, is_enabled));
+		} else {
+			assume_signals.append(module->And(NEW_ID, is_active, is_enabled));
 		}
+
+		module->remove(cell);
 	}
 
-	module->addReduceOr(NEW_ID, or_signals, trigger);
+	if (assume_signals.empty())
+	{
+		module->addReduceOr(NEW_ID, assert_signals, trigger);
+	}
+	else
+	{
+		Wire *assume_q = module->addWire(NEW_ID);
+		assume_q->attributes["\\init"] = State::S0;
+		assume_signals.append(assume_q);
+
+		SigSpec assume_nok = module->ReduceOr(NEW_ID, assume_signals);
+		SigSpec assume_ok = module->Not(NEW_ID, assume_nok);
+		module->addFf(NEW_ID, assume_nok, assume_q);
+
+		SigSpec assert_fail = module->ReduceOr(NEW_ID, assert_signals);
+		module->addAnd(NEW_ID, assert_fail, assume_ok, trigger);
+	}
 
 	if (flag_flatten) {
 		log_push();
@@ -334,7 +358,7 @@ void create_miter_assert(struct Pass *that, std::vector<std::string> args, RTLIL
 
 struct MiterPass : public Pass {
 	MiterPass() : Pass("miter", "automatically create a miter circuit") { }
-	virtual void help()
+	void help() YS_OVERRIDE
 	{
 		//   |---v---|---v---|---v---|---v---|---v---|---v---|---v---|---v---|---v---|---v---|
 		log("\n");
@@ -361,7 +385,7 @@ struct MiterPass : public Pass {
 		log("        also create an 'assert' cell that checks if trigger is always low.\n");
 		log("\n");
 		log("    -flatten\n");
-		log("        call 'flatten; opt_expr -keepdc -undriven;;' on the miter circuit.\n");
+		log("        call 'flatten -wb; opt_expr -keepdc -undriven;;' on the miter circuit.\n");
 		log("\n");
 		log("\n");
 		log("    miter -assert [options] module [miter_name]\n");
@@ -375,10 +399,10 @@ struct MiterPass : public Pass {
 		log("        keep module output ports.\n");
 		log("\n");
 		log("    -flatten\n");
-		log("        call 'flatten; opt_expr -keepdc -undriven;;' on the miter circuit.\n");
+		log("        call 'flatten -wb; opt_expr -keepdc -undriven;;' on the miter circuit.\n");
 		log("\n");
 	}
-	virtual void execute(std::vector<std::string> args, RTLIL::Design *design)
+	void execute(std::vector<std::string> args, RTLIL::Design *design) YS_OVERRIDE
 	{
 		if (args.size() > 1 && args[1] == "-equiv") {
 			create_miter_equiv(this, args, design);

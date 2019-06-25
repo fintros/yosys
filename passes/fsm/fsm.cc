@@ -27,7 +27,7 @@ PRIVATE_NAMESPACE_BEGIN
 
 struct FsmPass : public Pass {
 	FsmPass() : Pass("fsm", "extract and optimize finite state machines") { }
-	virtual void help()
+	void help() YS_OVERRIDE
 	{
 		//   |---v---|---v---|---v---|---v---|---v---|---v---|---v---|---v---|---v---|---v---|
 		log("\n");
@@ -59,18 +59,22 @@ struct FsmPass : public Pass {
 		log("    -expand, -norecode, -export, -nomap\n");
 		log("        enable or disable passes as indicated above\n");
 		log("\n");
+		log("    -fullexpand\n");
+		log("        call expand with -full option\n");
+		log("\n");
 		log("    -encoding type\n");
 		log("    -fm_set_fsm_file file\n");
 		log("    -encfile file\n");
 		log("        passed through to fsm_recode pass\n");
 		log("\n");
 	}
-	virtual void execute(std::vector<std::string> args, RTLIL::Design *design)
+	void execute(std::vector<std::string> args, RTLIL::Design *design) YS_OVERRIDE
 	{
 		bool flag_nomap = false;
 		bool flag_norecode = false;
 		bool flag_nodetect = false;
 		bool flag_expand = false;
+		bool flag_fullexpand = false;
 		bool flag_export = false;
 		std::string fm_set_fsm_file_opt;
 		std::string encfile_opt;
@@ -110,6 +114,10 @@ struct FsmPass : public Pass {
 				flag_expand = true;
 				continue;
 			}
+			if (arg == "-fullexpand") {
+				flag_fullexpand = true;
+				continue;
+			}
 			if (arg == "-export") {
 				flag_export = true;
 				continue;
@@ -126,8 +134,8 @@ struct FsmPass : public Pass {
 		Pass::call(design, "opt_clean");
 		Pass::call(design, "fsm_opt");
 
-		if (flag_expand) {
-			Pass::call(design, "fsm_expand");
+		if (flag_expand || flag_fullexpand) {
+			Pass::call(design, flag_fullexpand ? "fsm_expand -full" : "fsm_expand");
 			Pass::call(design, "opt_clean");
 			Pass::call(design, "fsm_opt");
 		}

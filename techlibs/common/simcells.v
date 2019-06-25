@@ -175,6 +175,44 @@ endmodule
 
 //  |---v---|---v---|---v---|---v---|---v---|---v---|---v---|---v---|---v---|---v---|
 //-
+//-     $_ANDNOT_ (A, B, Y)
+//-
+//- A 2-input AND-NOT gate.
+//-
+//- Truth table:    A B | Y
+//-                -----+---
+//-                 0 0 | 0
+//-                 0 1 | 0
+//-                 1 0 | 1
+//-                 1 1 | 0
+//-
+module \$_ANDNOT_ (A, B, Y);
+input A, B;
+output Y;
+assign Y = A & (~B);
+endmodule
+
+//  |---v---|---v---|---v---|---v---|---v---|---v---|---v---|---v---|---v---|---v---|
+//-
+//-     $_ORNOT_ (A, B, Y)
+//-
+//- A 2-input OR-NOT gate.
+//-
+//- Truth table:    A B | Y
+//-                -----+---
+//-                 0 0 | 1
+//-                 0 1 | 0
+//-                 1 0 | 1
+//-                 1 1 | 1
+//-
+module \$_ORNOT_ (A, B, Y);
+input A, B;
+output Y;
+assign Y = A | (~B);
+endmodule
+
+//  |---v---|---v---|---v---|---v---|---v---|---v---|---v---|---v---|---v---|---v---|
+//-
 //-     $_MUX_ (A, B, S, Y)
 //-
 //- A 2-input MUX gate.
@@ -427,7 +465,7 @@ endmodule
 //-
 //-     $_SR_NP_ (S, R, Q)
 //-
-//- A set-reset latch with negative polarity SET and positive polarioty RESET.
+//- A set-reset latch with negative polarity SET and positive polarity RESET.
 //-
 //- Truth table:    S R | Q
 //-                -----+---
@@ -451,7 +489,7 @@ endmodule
 //-
 //-     $_SR_PN_ (S, R, Q)
 //-
-//- A set-reset latch with positive polarity SET and negative polarioty RESET.
+//- A set-reset latch with positive polarity SET and negative polarity RESET.
 //-
 //- Truth table:    S R | Q
 //-                -----+---
@@ -494,6 +532,23 @@ always @(posedge S, posedge R) begin
 		Q <= 1;
 end
 endmodule
+
+`ifdef SIMCELLS_FF
+//  |---v---|---v---|---v---|---v---|---v---|---v---|---v---|---v---|---v---|---v---|
+//-
+//-     $_FF_ (D, Q)
+//-
+//- A D-type flip-flop that is clocked from the implicit global clock. (This cell
+//- type is usually only used in netlists for formal verification.)
+//-
+module \$_FF_ (D, Q);
+input D;
+output reg Q;
+always @($global_clock) begin
+	Q <= D;
+end
+endmodule
+`endif
 
 //  |---v---|---v---|---v---|---v---|---v---|---v---|---v---|---v---|---v---|---v---|
 //-

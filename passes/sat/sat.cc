@@ -659,6 +659,7 @@ struct SatHelper
 
 	void dump_model_to_vcd(std::string vcd_file_name)
 	{
+		rewrite_filename(vcd_file_name);
 		FILE *f = fopen(vcd_file_name.c_str(), "w");
 		if (!f)
 			log_cmd_error("Can't open output file `%s' for writing: %s\n", vcd_file_name.c_str(), strerror(errno));
@@ -691,7 +692,6 @@ struct SatHelper
 		// VCD has some limits on internal (non-display) identifier names, so make legal ones
 		std::map<std::string, std::string> vcdnames;
 
-		fprintf(f, "$timescale 1ns\n"); // arbitrary time scale since actual clock period is unknown/unimportant
 		fprintf(f, "$scope module %s $end\n", module->name.c_str());
 		for (auto &info : modelInfo)
 		{
@@ -762,6 +762,7 @@ struct SatHelper
 
 	void dump_model_to_json(std::string json_file_name)
 	{
+		rewrite_filename(json_file_name);
 		FILE *f = fopen(json_file_name.c_str(), "w");
 		if (!f)
 			log_cmd_error("Can't open output file `%s' for writing: %s\n", json_file_name.c_str(), strerror(errno));
@@ -891,7 +892,7 @@ void print_qed()
 
 struct SatPass : public Pass {
 	SatPass() : Pass("sat", "solve a SAT problem in the circuit") { }
-	virtual void help()
+	void help() YS_OVERRIDE
 	{
 		//   |---v---|---v---|---v---|---v---|---v---|---v---|---v---|---v---|---v---|---v---|
 		log("\n");
@@ -1058,7 +1059,7 @@ struct SatPass : public Pass {
 		log("        Like -falsify but do not return an error for timeouts.\n");
 		log("\n");
 	}
-	virtual void execute(std::vector<std::string> args, RTLIL::Design *design)
+	void execute(std::vector<std::string> args, RTLIL::Design *design) YS_OVERRIDE
 	{
 		std::vector<std::pair<std::string, std::string>> sets, sets_init, prove, prove_x;
 		std::map<int, std::vector<std::pair<std::string, std::string>>> sets_at;
@@ -1170,6 +1171,7 @@ struct SatPass : public Pass {
 			if (args[argidx] == "-tempinduct-def") {
 				tempinduct = true;
 				tempinduct_def = true;
+				enable_undef = true;
 				continue;
 			}
 			if (args[argidx] == "-tempinduct-baseonly") {
@@ -1505,6 +1507,7 @@ struct SatPass : public Pass {
 					{
 						if (!cnf_file_name.empty())
 						{
+							rewrite_filename(cnf_file_name);
 							FILE *f = fopen(cnf_file_name.c_str(), "w");
 							if (!f)
 								log_cmd_error("Can't open output file `%s' for writing: %s\n", cnf_file_name.c_str(), strerror(errno));
@@ -1608,6 +1611,7 @@ struct SatPass : public Pass {
 
 			if (!cnf_file_name.empty())
 			{
+				rewrite_filename(cnf_file_name);
 				FILE *f = fopen(cnf_file_name.c_str(), "w");
 				if (!f)
 					log_cmd_error("Can't open output file `%s' for writing: %s\n", cnf_file_name.c_str(), strerror(errno));

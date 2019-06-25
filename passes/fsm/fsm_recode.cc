@@ -57,13 +57,13 @@ static void fsm_recode(RTLIL::Cell *cell, RTLIL::Module *module, FILE *fm_set_fs
 
 	log("Recoding FSM `%s' from module `%s' using `%s' encoding:\n", cell->name.c_str(), module->name.c_str(), encoding.c_str());
 
-	if (encoding != "none" && encoding != "one-hot" && encoding != "binary" && encoding != "auto") {
+	if (encoding != "none" && encoding != "user" && encoding != "one-hot" && encoding != "binary" && encoding != "auto") {
 		log("  unknown encoding `%s': using auto instead.\n", encoding.c_str());
 		encoding = "auto";
 	}
 
-	if (encoding == "none") {
-		log("  nothing to do for encoding `none'.\n");
+	if (encoding == "none" || encoding == "user") {
+		log("  nothing to do for encoding `%s'.\n", encoding.c_str());
 		return;
 	}
 
@@ -126,7 +126,7 @@ static void fsm_recode(RTLIL::Cell *cell, RTLIL::Module *module, FILE *fm_set_fs
 
 struct FsmRecodePass : public Pass {
 	FsmRecodePass() : Pass("fsm_recode", "recoding finite state machines") { }
-	virtual void help()
+	void help() YS_OVERRIDE
 	{
 		//   |---v---|---v---|---v---|---v---|---v---|---v---|---v---|---v---|---v---|---v---|
 		log("\n");
@@ -151,7 +151,7 @@ struct FsmRecodePass : public Pass {
 		log("            .map <old_bitpattern> <new_bitpattern>\n");
 		log("\n");
 	}
-	virtual void execute(std::vector<std::string> args, RTLIL::Design *design)
+	void execute(std::vector<std::string> args, RTLIL::Design *design) YS_OVERRIDE
 	{
 		FILE *fm_set_fsm_file = NULL;
 		FILE *encfile = NULL;

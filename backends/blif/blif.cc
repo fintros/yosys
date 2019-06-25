@@ -38,8 +38,10 @@ struct BlifDumperConfig
 	bool impltf_mode;
 	bool gates_mode;
 	bool cname_mode;
+	bool iname_mode;
 	bool param_mode;
 	bool attr_mode;
+	bool iattr_mode;
 	bool blackbox_mode;
 	bool noalias_mode;
 
@@ -48,7 +50,8 @@ struct BlifDumperConfig
 	std::string true_type, true_out, false_type, false_out, undef_type, undef_out;
 
 	BlifDumperConfig() : icells_mode(false), conn_mode(false), impltf_mode(false), gates_mode(false),
-			cname_mode(false), param_mode(false), attr_mode(false), blackbox_mode(false), noalias_mode(false) { }
+			cname_mode(false), iname_mode(false), param_mode(false), attr_mode(false), iattr_mode(false),
+			blackbox_mode(false), noalias_mode(false) { }
 };
 
 struct BlifDumper
@@ -76,9 +79,6 @@ struct BlifDumper
 							break;
 						case State::S1:
 							init_bits[initsig[i]] = 1;
-							break;
-						case State::Sx:
-							init_bits[initsig[i]] = 2;
 							break;
 						default:
 							break;
@@ -115,7 +115,7 @@ struct BlifDumper
 				str[i] = '?';
 
 		if (sig.wire->width != 1)
-			str += stringf("[%d]", sig.offset);
+			str += stringf("[%d]", sig.wire->upto ? sig.wire->start_offset+sig.wire->width-sig.offset-1 : sig.wire->start_offset+sig.offset);
 
 		cstr_buf.push_back(str);
 		return cstr_buf.back().c_str();
@@ -126,7 +126,7 @@ struct BlifDumper
 		sigmap.apply(sig);
 
 		if (init_bits.count(sig) == 0)
-			return "";
+			return " 2";
 
 		string str = stringf(" %d", init_bits.at(sig));
 
@@ -140,7 +140,7 @@ struct BlifDumper
 			return "subckt";
 		if (!design->modules_.count(RTLIL::escape_id(cell_type)))
 			return "gate";
-		if (design->modules_.at(RTLIL::escape_id(cell_type))->get_bool_attribute("\\blackbox"))
+		if (design->modules_.at(RTLIL::escape_id(cell_type))->get_blackbox_attribute())
 			return "gate";
 		return "subckt";
 	}
@@ -196,7 +196,7 @@ struct BlifDumper
 		}
 		f << stringf("\n");
 
-		if (module->get_bool_attribute("\\blackbox")) {
+		if (module->get_blackbox_attribute()) {
 			f << stringf(".blackbox\n");
 			f << stringf(".end\n");
 			return;
@@ -243,100 +243,118 @@ struct BlifDumper
 			if (!config->icells_mode && cell->type == "$_NOT_") {
 				f << stringf(".names %s %s\n0 1\n",
 						cstr(cell->getPort("\\A")), cstr(cell->getPort("\\Y")));
-				continue;
+				goto internal_cell;
 			}
 
 			if (!config->icells_mode && cell->type == "$_AND_") {
 				f << stringf(".names %s %s %s\n11 1\n",
 						cstr(cell->getPort("\\A")), cstr(cell->getPort("\\B")), cstr(cell->getPort("\\Y")));
-				continue;
+				goto internal_cell;
 			}
 
 			if (!config->icells_mode && cell->type == "$_OR_") {
 				f << stringf(".names %s %s %s\n1- 1\n-1 1\n",
 						cstr(cell->getPort("\\A")), cstr(cell->getPort("\\B")), cstr(cell->getPort("\\Y")));
-				continue;
+				goto internal_cell;
 			}
 
 			if (!config->icells_mode && cell->type == "$_XOR_") {
 				f << stringf(".names %s %s %s\n10 1\n01 1\n",
 						cstr(cell->getPort("\\A")), cstr(cell->getPort("\\B")), cstr(cell->getPort("\\Y")));
-				continue;
+				goto internal_cell;
 			}
 
 			if (!config->icells_mode && cell->type == "$_NAND_") {
 				f << stringf(".names %s %s %s\n0- 1\n-0 1\n",
 						cstr(cell->getPort("\\A")), cstr(cell->getPort("\\B")), cstr(cell->getPort("\\Y")));
-				continue;
+				goto internal_cell;
 			}
 
 			if (!config->icells_mode && cell->type == "$_NOR_") {
 				f << stringf(".names %s %s %s\n00 1\n",
 						cstr(cell->getPort("\\A")), cstr(cell->getPort("\\B")), cstr(cell->getPort("\\Y")));
-				continue;
+				goto internal_cell;
 			}
 
 			if (!config->icells_mode && cell->type == "$_XNOR_") {
 				f << stringf(".names %s %s %s\n11 1\n00 1\n",
 						cstr(cell->getPort("\\A")), cstr(cell->getPort("\\B")), cstr(cell->getPort("\\Y")));
-				continue;
+				goto internal_cell;
+			}
+
+			if (!config->icells_mode && cell->type == "$_ANDNOT_") {
+				f << stringf(".names %s %s %s\n10 1\n",
+						cstr(cell->getPort("\\A")), cstr(cell->getPort("\\B")), cstr(cell->getPort("\\Y")));
+				goto internal_cell;
+			}
+
+			if (!config->icells_mode && cell->type == "$_ORNOT_") {
+				f << stringf(".names %s %s %s\n1- 1\n-0 1\n",
+						cstr(cell->getPort("\\A")), cstr(cell->getPort("\\B")), cstr(cell->getPort("\\Y")));
+				goto internal_cell;
 			}
 
 			if (!config->icells_mode && cell->type == "$_AOI3_") {
 				f << stringf(".names %s %s %s %s\n-00 1\n0-0 1\n",
 						cstr(cell->getPort("\\A")), cstr(cell->getPort("\\B")), cstr(cell->getPort("\\C")), cstr(cell->getPort("\\Y")));
-				continue;
+				goto internal_cell;
 			}
 
 			if (!config->icells_mode && cell->type == "$_OAI3_") {
 				f << stringf(".names %s %s %s %s\n00- 1\n--0 1\n",
 						cstr(cell->getPort("\\A")), cstr(cell->getPort("\\B")), cstr(cell->getPort("\\C")), cstr(cell->getPort("\\Y")));
-				continue;
+				goto internal_cell;
 			}
 
 			if (!config->icells_mode && cell->type == "$_AOI4_") {
 				f << stringf(".names %s %s %s %s %s\n-0-0 1\n-00- 1\n0--0 1\n0-0- 1\n",
 						cstr(cell->getPort("\\A")), cstr(cell->getPort("\\B")),
 						cstr(cell->getPort("\\C")), cstr(cell->getPort("\\D")), cstr(cell->getPort("\\Y")));
-				continue;
+				goto internal_cell;
 			}
 
 			if (!config->icells_mode && cell->type == "$_OAI4_") {
 				f << stringf(".names %s %s %s %s %s\n00-- 1\n--00 1\n",
 						cstr(cell->getPort("\\A")), cstr(cell->getPort("\\B")),
 						cstr(cell->getPort("\\C")), cstr(cell->getPort("\\D")), cstr(cell->getPort("\\Y")));
-				continue;
+				goto internal_cell;
 			}
 
 			if (!config->icells_mode && cell->type == "$_MUX_") {
 				f << stringf(".names %s %s %s %s\n1-0 1\n-11 1\n",
 						cstr(cell->getPort("\\A")), cstr(cell->getPort("\\B")),
 						cstr(cell->getPort("\\S")), cstr(cell->getPort("\\Y")));
-				continue;
+				goto internal_cell;
+			}
+
+			if (!config->icells_mode && cell->type == "$_FF_") {
+				f << stringf(".latch %s %s%s\n", cstr(cell->getPort("\\D")), cstr(cell->getPort("\\Q")),
+						cstr_init(cell->getPort("\\Q")));
+				goto internal_cell;
 			}
 
 			if (!config->icells_mode && cell->type == "$_DFF_N_") {
 				f << stringf(".latch %s %s fe %s%s\n", cstr(cell->getPort("\\D")), cstr(cell->getPort("\\Q")),
 						cstr(cell->getPort("\\C")), cstr_init(cell->getPort("\\Q")));
-				continue;
+				goto internal_cell;
 			}
 
 			if (!config->icells_mode && cell->type == "$_DFF_P_") {
 				f << stringf(".latch %s %s re %s%s\n", cstr(cell->getPort("\\D")), cstr(cell->getPort("\\Q")),
 						cstr(cell->getPort("\\C")), cstr_init(cell->getPort("\\Q")));
-				continue;
+				goto internal_cell;
 			}
 
 			if (!config->icells_mode && cell->type == "$_DLATCH_N_") {
 				f << stringf(".latch %s %s al %s%s\n", cstr(cell->getPort("\\D")), cstr(cell->getPort("\\Q")),
 						cstr(cell->getPort("\\E")), cstr_init(cell->getPort("\\Q")));
-				continue;
+				goto internal_cell;
 			}
 
 			if (!config->icells_mode && cell->type == "$_DLATCH_P_") {
 				f << stringf(".latch %s %s ah %s%s\n", cstr(cell->getPort("\\D")), cstr(cell->getPort("\\Q")),
 						cstr(cell->getPort("\\E")), cstr_init(cell->getPort("\\Q")));
-				continue;
+				goto internal_cell;
 			}
 
 			if (!config->icells_mode && cell->type == "$lut") {
@@ -358,7 +376,7 @@ struct BlifDumper
 						}
 						f << " 1\n";
 					}
-				continue;
+				goto internal_cell;
 			}
 
 			if (!config->icells_mode && cell->type == "$sop") {
@@ -386,17 +404,31 @@ struct BlifDumper
 					}
 					f << " 1\n";
 				}
-				continue;
+				goto internal_cell;
 			}
 
 			f << stringf(".%s %s", subckt_or_gate(cell->type.str()), cstr(cell->type));
 			for (auto &conn : cell->connections())
-			for (int i = 0; i < conn.second.size(); i++) {
-				if (conn.second.size() == 1)
-					f << stringf(" %s", cstr(conn.first));
-				else
-					f << stringf(" %s[%d]", cstr(conn.first), i);
-				f << stringf("=%s", cstr(conn.second.extract(i, 1)));
+			{
+				if (conn.second.size() == 1) {
+					f << stringf(" %s=%s", cstr(conn.first), cstr(conn.second[0]));
+					continue;
+				}
+
+				Module *m = design->module(cell->type);
+				Wire *w = m ? m->wire(conn.first) : nullptr;
+
+				if (w == nullptr) {
+					for (int i = 0; i < GetSize(conn.second); i++)
+						f << stringf(" %s[%d]=%s", cstr(conn.first), i, cstr(conn.second[i]));
+				} else {
+					for (int i = 0; i < std::min(GetSize(conn.second), GetSize(w)); i++) {
+						SigBit sig(w, i);
+						f << stringf(" %s[%d]=%s", cstr(conn.first), sig.wire->upto ?
+								sig.wire->start_offset+sig.wire->width-sig.offset-1 :
+								sig.wire->start_offset+sig.offset, cstr(conn.second[i]));
+					}
+				}
 			}
 			f << stringf("\n");
 
@@ -406,6 +438,14 @@ struct BlifDumper
 				dump_params(".attr", cell->attributes);
 			if (config->param_mode)
 				dump_params(".param", cell->parameters);
+
+			if (0) {
+		internal_cell:
+				if (config->iname_mode)
+					f << stringf(".cname %s\n", cstr(cell->name));
+				if (config->iattr_mode)
+					dump_params(".attr", cell->attributes);
+			}
 		}
 
 		for (auto &conn : module->connections())
@@ -438,7 +478,7 @@ struct BlifDumper
 
 struct BlifBackend : public Backend {
 	BlifBackend() : Backend("blif", "write design to BLIF file") { }
-	virtual void help()
+	void help() YS_OVERRIDE
 	{
 		//   |---v---|---v---|---v---|---v---|---v---|---v---|---v---|---v---|---v---|---v---|
 		log("\n");
@@ -496,6 +536,11 @@ struct BlifBackend : public Backend {
 		log("    -cname\n");
 		log("        use the non-standard .cname statement to write cell names\n");
 		log("\n");
+		log("    -iname, -iattr\n");
+		log("        enable -cname and -attr functionality for .names statements\n");
+		log("        (the .cname and .attr statements will be included in the BLIF\n");
+		log("        output after the truth table for the .names statement)\n");
+		log("\n");
 		log("    -blackbox\n");
 		log("        write blackbox cells with .blackbox statement.\n");
 		log("\n");
@@ -503,7 +548,7 @@ struct BlifBackend : public Backend {
 		log("        do not write definitions for the $true, $false and $undef wires.\n");
 		log("\n");
 	}
-	virtual void execute(std::ostream *&f, std::string filename, std::vector<std::string> args, RTLIL::Design *design)
+	void execute(std::ostream *&f, std::string filename, std::vector<std::string> args, RTLIL::Design *design) YS_OVERRIDE
 	{
 		std::string top_module_name;
 		std::string buf_type, buf_in, buf_out;
@@ -572,6 +617,14 @@ struct BlifBackend : public Backend {
 				config.attr_mode = true;
 				continue;
 			}
+			if (args[argidx] == "-iname") {
+				config.iname_mode = true;
+				continue;
+			}
+			if (args[argidx] == "-iattr") {
+				config.iattr_mode = true;
+				continue;
+			}
 			if (args[argidx] == "-blackbox") {
 				config.blackbox_mode = true;
 				continue;
@@ -601,7 +654,7 @@ struct BlifBackend : public Backend {
 		for (auto module_it : design->modules_)
 		{
 			RTLIL::Module *module = module_it.second;
-			if (module->get_bool_attribute("\\blackbox") && !config.blackbox_mode)
+			if (module->get_blackbox_attribute() && !config.blackbox_mode)
 				continue;
 
 			if (module->processes.size() != 0)
